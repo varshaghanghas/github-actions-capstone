@@ -1,0 +1,60 @@
+name: Reusable Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: 'Target Node.js runtime version string'
+        required: false
+        default: '20'
+        type: string
+      run_tests:
+        description: 'Boolean flag controlling test suite execution'
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      test_result:
+        description: 'Result string capturing pipeline success status'
+        value: ${{ jobs.build-and-test.outputs.status }}
+
+jobs:
+  build-and-test:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.set-outcome.outputs.status }}
+
+    steps:
+      - name: Checkout Code Base
+        uses: actions/checkout@v4
+
+      - name: Initialize Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'npm'
+
+      - name: Install Project Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Run Quality Verification Tests
+        if: ${{ inputs.run_tests }}
+        id: exec-tests
+        run: npm test
+
+      - name: Determine Pipeline Status Output
+        id: set-outcome
+        if: always()
+        run: |
+          # If tests were skipped, or if they passed successfully, mark as passed
+          if [ "${{ steps.exec-tests.outcome }}" == "failure" ]; then
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+          fi
