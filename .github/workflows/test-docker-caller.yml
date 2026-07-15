@@ -1,0 +1,26 @@
+name: Test Docker Reusable Workflow
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  # This job calls your Task 3 reusable workflow
+  trigger-docker-build:
+    uses: ./.github/workflows/reusable-docker.yml
+    with:
+      image_name: "github-actions-capstone"
+      tag: "test-run"
+    secrets:
+      docker_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      docker_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # This job verifies that Task 3 successfully passed back the image URL
+  verify-docker-output:
+    needs: trigger-docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Returned Image Path
+        run: |
+          echo "The Docker reusable workflow successfully created:"
+          echo "${{ needs.trigger-docker-build.outputs.image_url }}"
