@@ -1,0 +1,24 @@
+name: Test Reusable Workflow
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  # Call the reusable workflow you built in Task 2
+  run-pipeline:
+    uses: ./.github/workflows/reusable-build-test.yml
+    with:
+      node_version: '20'
+      run_tests: true
+
+  # Verify the output returned by the reusable workflow
+  check-output:
+    needs: run-pipeline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Test Result Output
+        run: |
+          echo "The reusable workflow returned: ${{ needs.run-pipeline.outputs.test_result }}"
