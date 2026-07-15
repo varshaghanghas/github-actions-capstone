@@ -1,0 +1,13 @@
+{
+  "name": "github-actions-capstone",
+  "version": "1.0.0",
+  "description": "Production grade Node.js app for CI/CD practice",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "test": "bash tests/health-check.sh"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
