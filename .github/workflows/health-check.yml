@@ -27,21 +27,42 @@ jobs:
           CONTAINER_ID=$(docker run -d -p 8080:3000 ${{ secrets.DOCKERHUB_USERNAME }}/github-actions-capstone:test-run)
           echo "CONTAINER_ID=$CONTAINER_ID" >> $GITHUB_ENV
 
-      - name: Execute Endpoint Curl Inspection
-        id: inspect_api
-        run: |
-          echo "Allowing runtime to initialize..."
-          sleep 5
-          
-          # Hits your explicit /health endpoint over localhost
-          if curl --silent --fail http://localhost:8080/health; then
-            echo "API structural response check: OK"
-            echo "HEALTH_STATUS=PASSED" >> $GITHUB_ENV
-          else
-            echo "API endpoint failed validation or returned a non-200 block."
-            echo "HEALTH_STATUS=FAILED" >> $GITHUB_ENV
-            exit 1
-          fi
+          - name: Execute Endpoint Curl Inspection
+          id: inspect_api
+          run: |
+            echo "Checking application health status..."
+            
+            # Initialize variables for the polling loop
+            ATTEMPTS=0
+            MAX_ATTEMPTS=5
+            SUCCESS=false
+  
+            until [ $ATTEMPTS -ge $MAX_ATTEMPTS ]; do
+              echo "Attempt $((ATTEMPTS+1)) of $MAX_ATTEMPTS: Connecting to endpoint..."
+              
+              # Request endpoint with a 2-second timeout per attempt
+              if curl --silent --fail --max-time 2 http://localhost:8080/health; then
+                echo "API structural response check: OK"
+                SUCCESS=true
+                break
+              fi
+              
+              ATTEMPTS=$((ATTEMPTS+1))
+              echo "Endpoint not ready yet. Sleeping 3 seconds..."
+              sleep 3
+            done
+  
+            # Evaluate overall execution status
+            if [ "$SUCCESS" = true ]; then
+              echo "HEALTH_STATUS=PASSED" >> $GITHUB_ENV
+            else
+              echo "API endpoint failed validation or returned a non-200 block after $MAX_ATTEMPTS attempts."
+              echo "HEALTH_STATUS=FAILED" >> $GITHUB_ENV
+              
+              echo "=== Printing Container Logs for Debugging ==="
+              docker logs ${{ env.CONTAINER_ID }}
+              exit 1
+            fi
 
       - name: Clean Up Isolated Container Resources
         if: always() # Ensures that cleanup steps run even if the curl execution reports a failure
