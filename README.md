@@ -9,7 +9,9 @@ An end-to-end cloud-native microservice boilerplate constructed to validate auto
 
 ## 📊 Pipeline Status Badges
 [PR Validation Pipeline Status](https://github.com)
+
 [Production Deployment Pipeline Status](https://github.com)
+
 [Scheduled Health Check Status](https://github.com)
 
 ## Features
