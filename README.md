@@ -8,9 +8,9 @@ An end-to-end cloud-native microservice boilerplate constructed to validate auto
 - **Optimized Packaging**: Implements a secure multi-stage Alpine Docker runtime.
 
 ## 📊 Pipeline Status Badges
-![PR Validation Pipeline Status](https://github.com)
-![Production Deployment Pipeline Status](https://github.com)
-![Scheduled Health Check Status](https://github.com)
+[PR Validation Pipeline Status](https://github.com)
+[Production Deployment Pipeline Status](https://github.com)
+[Scheduled Health Check Status](https://github.com)
 
 ## Features
 - **Express API**: Exposes a stateless `/health` endpoint for validation.
