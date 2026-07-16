@@ -23,6 +23,10 @@ on:
         description: 'The full path pointing to the published image repository artifact'
         value: ${{ jobs.docker-pipeline.outputs.full_image_path }}
 
+# TASK 4: Restrict token authorization levels globally across the PR runner environment
+permissions:
+  contents: read
+
 jobs:
   docker-pipeline:
     name: Build & Push Image
@@ -47,25 +51,25 @@ jobs:
       #     push: true
       #     tags: ${{ secrets.docker_username }}/${{ inputs.image_name }}:${{ inputs.tag }}
 
-      # 1. Build locally but DO NOT push immediately
+      # 1. Build locally and explicitly LOAD into the local runner daemon
       - name: Build Local Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: false
-          load: true # Loads the image layers into the runner's local Docker daemon
+          load: true # ◄ CRITICAL FIX: This makes the image visible to Trivy on the runner
           tags: ${{ secrets.docker_username }}/${{ inputs.image_name }}:${{ inputs.tag }}
 
-      # 2. CHALLENGE TASK 1: Intercept and scan the local image with Trivy
+      # 2. CHALLENGE TASK 1: Scan the locally loaded image
       - name: Scan Docker Image for Vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ secrets.docker_username }}/${{ inputs.image_name }}:${{ inputs.tag }}'
           format: 'table'
-          exit-code: '1' # Fails the pipeline if CRITICAL or HIGH vulnerabilities are found
+          exit-code: '1' 
           severity: 'CRITICAL,HIGH'
 
-      # 3. Only push to Docker Hub if Trivy scan returns an exit code of 0
+      # 3. Only push to Docker Hub if the security scan passes
       - name: Push Secure Image to Docker Hub
         run: docker push ${{ secrets.docker_username }}/${{ inputs.image_name }}:${{ inputs.tag }}
 
