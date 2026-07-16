@@ -1,4 +1,4 @@
-name: "Main Branch Production Pipeline"
+name: Production Deployment Pipeline
 
 on:
   push:
@@ -6,57 +6,55 @@ on:
       - main
 
 jobs:
-  # ========================================================
-  # JOB 1: Continuous Integration (Lint & Test)
-  # ========================================================
-  ci-stage:
-    # Replace this path with the actual location of your reusable build-test workflow
-    uses: ./.github/workflows/build-test.yml
+  # 1. Execute Continuous Integration via Task 2 Reusable Workflow
+  ci-testing:
+    uses: ./.github/workflows/reusable-build-test.yml
+    with:
+      node_version: '20'
+      run_tests: true
 
-  # ========================================================
-  # JOB 2: Package & Containerize (Depends on Job 1 passing)
-  # ========================================================
-  cd-container-stage:
-    needs: ci-stage
+  # 2. Package & Deliver Artifact via Task 3 Reusable Workflow (Depends on CI passing)
+  cd-packaging:
+    needs: ci-testing
     runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.vars.outputs.short_sha }}
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Generates the required short-commit-hash syntax
-      - name: Set Short Commit SHA
+      # Generates short hash required by the prompt instructions
+      - name: Compute Short Commit Hash
         id: vars
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      # Calls your reusable Docker workflow using outputted tags
-      - name: Call Reusable Docker Workflow
-        uses: ./.github/workflows/docker-build.yml
-        with:
-          tag_latest: "latest"
-          tag_sha: "sha-${{ steps.vars.outputs.short_sha }}"
-          secrets: inherit # Automatically passes GITHUB_TOKEN or repository secrets if needed
+  # We invoke the Task 3 Docker compilation workflow using sequential dependencies
+  docker-hub-delivery:
+    needs: cd-packaging
+    uses: ./.github/workflows/reusable-docker.yml
+    with:
+      image_name: "github-actions-capstone"
+      tag: "sha-${{ needs.cd-packaging.outputs.short_sha }}"
+    secrets:
+      docker_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      docker_token: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # ========================================================
-  # JOB 3: Production Deployment (Depends on Job 2 passing)
-  # ========================================================
+  # 3. Secure Production Release (Depends on Docker Hub pushing successfully)
   deploy:
-    needs: cd-container-stage
+    needs: [cd-packaging, docker-hub-delivery]
     runs-on: ubuntu-latest
     
-    # Hooks into your GitHub Repository protection rules
-    environment: production 
+    # Hooks directly into GitHub Settings -> Environments -> production
+    environment: production
     
     steps:
-      - name: Output Deployment Target
+      - name: Print Deploy Target Summary
         run: |
-          # Dynamically constructs your GHCR/Docker image URL pattern
-          IMAGE_URL="ghcr.io/${{ github.repository }}/app:sha-${{ needs.cd-container-stage.outputs.short_sha }}"
-          echo "Deploying image: $IMAGE_URL to production"
-          
-      - name: Simulate Production Traffic Routing
+          # Grabs and streams the structured output variable exported from Task 3
+          echo "Deploying image: ${{ needs.docker-hub-delivery.outputs.image_url }} to production"
+
+      - name: Simulate Production Environment Rollout
         run: |
-          echo "Connecting to production clusters..."
-          echo "Executing rolling update strategy..."
-          echo "Deployment successful!"
+          echo "Establishing handshake with cluster nodes..."
+          echo "Rolling out stable container instances..."
+          echo "Deployment phase completed successfully."
