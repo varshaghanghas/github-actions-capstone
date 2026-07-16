@@ -1,0 +1,62 @@
+name: "Main Branch Production Pipeline"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # ========================================================
+  # JOB 1: Continuous Integration (Lint & Test)
+  # ========================================================
+  ci-stage:
+    # Replace this path with the actual location of your reusable build-test workflow
+    uses: ./.github/workflows/build-test.yml
+
+  # ========================================================
+  # JOB 2: Package & Containerize (Depends on Job 1 passing)
+  # ========================================================
+  cd-container-stage:
+    needs: ci-stage
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Generates the required short-commit-hash syntax
+      - name: Set Short Commit SHA
+        id: vars
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Calls your reusable Docker workflow using outputted tags
+      - name: Call Reusable Docker Workflow
+        uses: ./.github/workflows/docker-build.yml
+        with:
+          tag_latest: "latest"
+          tag_sha: "sha-${{ steps.vars.outputs.short_sha }}"
+        secrets: inherit # Automatically passes GITHUB_TOKEN or repository secrets if needed
+
+  # ========================================================
+  # JOB 3: Production Deployment (Depends on Job 2 passing)
+  # ========================================================
+  deploy:
+    needs: cd-container-stage
+    runs-on: ubuntu-latest
+    
+    # Hooks into your GitHub Repository protection rules
+    environment: production 
+    
+    steps:
+      - name: Output Deployment Target
+        run: |
+          # Dynamically constructs your GHCR/Docker image URL pattern
+          IMAGE_URL="ghcr.io/${{ github.repository }}/app:sha-${{ needs.cd-container-stage.outputs.short_sha }}"
+          echo "Deploying image: $IMAGE_URL to production"
+          
+      - name: Simulate Production Traffic Routing
+        run: |
+          echo "Connecting to production clusters..."
+          echo "Executing rolling update strategy..."
+          echo "Deployment successful!"
