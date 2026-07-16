@@ -36,7 +36,7 @@ jobs:
         with:
           tag_latest: "latest"
           tag_sha: "sha-${{ steps.vars.outputs.short_sha }}"
-        secrets: inherit # Automatically passes GITHUB_TOKEN or repository secrets if needed
+          secrets: inherit # Automatically passes GITHUB_TOKEN or repository secrets if needed
 
   # ========================================================
   # JOB 3: Production Deployment (Depends on Job 2 passing)
