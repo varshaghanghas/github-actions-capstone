@@ -8,6 +8,7 @@ on:
 # TASK 4: Lock down the default GitHub token to read-only for codebase contents
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   # 1. Call the reusable validation workflow from Task 2
