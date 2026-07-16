@@ -1,0 +1,24 @@
+name: PR Validation Pipeline
+
+on:
+  pull_request:
+    branches: [ "main" ]
+    types: [ opened, synchronize ]
+
+jobs:
+  # 1. Call the reusable validation workflow from Task 2
+  validate-pr-code:
+    uses: ./.github/workflows/reusable-build-test.yml
+    with:
+      node_version: '20'
+      run_tests: true
+
+  # 2. Print the completion summary after tests succeed
+  pr-comment:
+    name: Post PR Status Summary
+    needs: validate-pr-code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print Summary Status to Console
+        run: |
+          echo "PR checks passed for branch: ${{ github.head_ref }}"
