@@ -22,3 +22,9 @@ jobs:
       - name: Print Summary Status to Console
         run: |
           echo "PR checks passed for branch: ${{ github.head_ref }}"
+
+      # Day 49- TASK 3: Add the Dependency Review action gate
+      - name: Check Dependencies for Vulnerabilities
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: critical
