@@ -1,0 +1,60 @@
+name: Production Deployment Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # 1. Execute Continuous Integration via Task 2 Reusable Workflow
+  ci-testing:
+    uses: ./.github/workflows/reusable-build-test.yml
+    with:
+      node_version: '20'
+      run_tests: true
+
+  # 2. Package & Deliver Artifact via Task 3 Reusable Workflow (Depends on CI passing)
+  cd-packaging:
+    needs: ci-testing
+    runs-on: ubuntu-latest
+    outputs:
+      short_sha: ${{ steps.vars.outputs.short_sha }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Generates short hash required by the prompt instructions
+      - name: Compute Short Commit Hash
+        id: vars
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+  # We invoke the Task 3 Docker compilation workflow using sequential dependencies
+  docker-hub-delivery:
+    needs: cd-packaging
+    uses: ./.github/workflows/reusable-docker.yml
+    with:
+      image_name: "github-actions-capstone"
+      tag: "sha-${{ needs.cd-packaging.outputs.short_sha }}"
+    secrets:
+      docker_username: ${{ secrets.DOCKERHUB_USERNAME }}
+      docker_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  # 3. Secure Production Release (Depends on Docker Hub pushing successfully)
+  deploy:
+    needs: [cd-packaging, docker-hub-delivery]
+    runs-on: ubuntu-latest
+    
+    # Hooks directly into GitHub Settings -> Environments -> production
+    environment: production
+    
+    steps:
+      - name: Print Deploy Target Summary
+        run: |
+          # Grabs and streams the structured output variable exported from Task 3
+          echo "Deploying image: ${{ needs.docker-hub-delivery.outputs.image_url }} to production"
+
+      - name: Simulate Production Environment Rollout
+        run: |
+          echo "Establishing handshake with cluster nodes..."
+          echo "Rolling out stable container instances..."
+          echo "Deployment phase completed successfully."
