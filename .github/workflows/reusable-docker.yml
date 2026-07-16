@@ -23,6 +23,10 @@ on:
         description: 'The full path pointing to the published image repository artifact'
         value: ${{ jobs.docker-pipeline.outputs.full_image_path }}
 
+# TASK 4: Restrict token authorization levels globally across the PR runner environment
+permissions:
+  contents: read
+
 jobs:
   docker-pipeline:
     name: Build & Push Image
