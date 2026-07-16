@@ -1,72 +1,61 @@
-name: "Scheduled Health Check"
+name: Scheduled Health Check
 
 on:
   schedule:
-    # Triggers at minute 0 of every 12th hour
+    # Executes precisely every 12 hours
     - cron: '0 */12 * * *'
-  workflow_dispatch: # Allows manual testing from the Actions UI
+  workflow_dispatch: # Enables immediate UI triggering for manual verification
 
 jobs:
-  health-check:
+  run-health-validation:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-
     steps:
-      - name: Log in to GitHub Container Registry (GHCR)
+      - name: Log in to Docker Hub Registry
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Pull Latest Docker Image
+      - name: Pull Target Image From Hub
         run: |
-          # Dynamically targets the repository's package path
-          docker pull ghcr.io/${{ github.repository }}/app:latest
+          # Adjust the tag target name if your latest build falls under a different repository tag convention
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/github-actions-capstone:test-run
 
-      - name: Run Container Detached
+      - name: Run Test Container in Detached Mode
         run: |
-          # Runs the container on port 8080 and saves the container ID
-          CONTAINER_ID=$(docker run -d -p 8080:8080 ghcr.io/${{ github.repository }}/app:latest)
+          # Maps host port 8080 to internal Express API port 3000
+          CONTAINER_ID=$(docker run -d -p 8080:3000 ${{ secrets.DOCKERHUB_USERNAME }}/github-actions-capstone:test-run)
           echo "CONTAINER_ID=$CONTAINER_ID" >> $GITHUB_ENV
 
-      - name: Wait and Curl Health Endpoint
-        id: test_endpoint
+      - name: Execute Endpoint Curl Inspection
+        id: inspect_api
         run: |
-          echo "Waiting 5 seconds for service initialization..."
+          echo "Allowing runtime to initialize..."
           sleep 5
           
-          # Curled with exit codes on failure; falls back to local container simulation if endpoint logic is omitted
-          if curl --silent --fail http://localhost:8080/health || curl --silent --fail http://localhost:8080/; then
-            echo "Health check response received successfully."
-            echo "STATUS=PASSED" >> $GITHUB_ENV
+          # Hits your explicit /health endpoint over localhost
+          if curl --silent --fail http://localhost:8080/health; then
+            echo "API structural response check: OK"
+            echo "HEALTH_STATUS=PASSED" >> $GITHUB_ENV
           else
-            # If your minimal Dockerfile doesn't host an actual web server yet, fall back to checking if the process lives
-            if docker ps --filter "id=${{ env.CONTAINER_ID }}" --format '{{.Status}}' | grep -q "Up"; then
-              echo "Container process is running stable."
-              echo "STATUS=PASSED" >> $GITHUB_ENV
-            else
-              echo "Container crashed or endpoint unreachable."
-              echo "STATUS=FAILED" >> $GITHUB_ENV
-              exit 1
-            fi
+            echo "API endpoint failed validation or returned a non-200 block."
+            echo "HEALTH_STATUS=FAILED" >> $GITHUB_ENV
+            exit 1
           fi
 
-      - name: Cleanup Resources
-        if: always() # Ensures cleanup runs even if the health check verification step fails
+      - name: Clean Up Isolated Container Resources
+        if: always() # Ensures that cleanup steps run even if the curl execution reports a failure
         run: |
           if [ -n "${{ env.CONTAINER_ID }}" ]; then
-            echo "Stopping container: ${{ env.CONTAINER_ID }}"
+            echo "Halting container instance: ${{ env.CONTAINER_ID }}"
             docker stop ${{ env.CONTAINER_ID }}
             docker rm ${{ env.CONTAINER_ID }}
           fi
 
-      - name: Generate Run Summary
+      - name: Populate Run Report Log
         if: always()
         run: |
           echo "## Health Check Report" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** \`ghcr.io/${{ github.repository }}/app:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ${{ env.STATUS || 'FAILED' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Image: myapp:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ env.HEALTH_STATUS || 'FAILED' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date)" >> $GITHUB_STEP_SUMMARY
